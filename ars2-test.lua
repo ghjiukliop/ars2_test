@@ -43,10 +43,16 @@ end
 
 local function isEnemyDead(enemy)
     local healthBar = enemy:FindFirstChild("HealthBar")
-    if healthBar and healthBar:FindFirstChild("Main") and healthBar.Main:FindFirstChild("Bar") then
-        local amount = healthBar.Main.Bar:FindFirstChild("Amount")
-        if amount and amount:IsA("TextLabel") and amount.ContentText == "0 HP" then
-            return true
+    if healthBar then
+        local main = healthBar:FindFirstChild("Main")
+        if main then
+            local bar = main:FindFirstChild("Bar")
+            if bar then
+                local amount = bar:FindFirstChild("Amount")
+                if amount and amount:IsA("TextLabel") and amount.ContentText == "0 HP" then
+                    return true
+                end
+            end
         end
     end
     return false
@@ -490,7 +496,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- Cập nhật HRP khi nhân vật hồi sinh
 player.CharacterAdded:Connect(function(newCharacter)
     character = newCharacter
-    hrp = character:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
+    hrp = newCharacter:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
 end)
 
 -- Hàm di chuyển (Luôn sử dụng HRP mới nhất)
