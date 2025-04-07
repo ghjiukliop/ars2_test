@@ -1,11 +1,4 @@
-local ARS = nil
 
-repeat
-    task.wait(0.1)
-    if _G["ARS_CustomARS"] and _G["ARS_CustomARS"].Main then
-        ARS = _G["ARS_CustomARS"].Main
-    end
-until ARS
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
