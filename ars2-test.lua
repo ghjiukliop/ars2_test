@@ -66,14 +66,17 @@ local function getNearestSelectedEnemy()
     for _, enemy in ipairs(enemiesFolder:GetChildren()) do
         if enemy:IsA("Model") and enemy:FindFirstChild("HumanoidRootPart") then
             local healthBar = enemy:FindFirstChild("HealthBar")
-            if healthBar and healthBar:FindFirstChild("Main") and healthBar.Main:FindFirstChild("Title") then
-                local title = healthBar.Main.Title
-                if title and title:IsA("TextLabel") and title.ContentText == selectedMobName and not killedNPCs[enemy.Name] then
-                    local enemyPosition = enemy.HumanoidRootPart.Position
-                    local distance = (playerPosition - enemyPosition).Magnitude
-                    if distance < shortestDistance then
-                        shortestDistance = distance
-                        nearestEnemy = enemy
+            if healthBar then
+                local main = healthBar:FindFirstChild("Main")
+                if main then
+                    local title = main:FindFirstChild("Title")
+                    if title and title:IsA("TextLabel") and title.ContentText == selectedMobName and not killedNPCs[enemy.Name] then
+                        local enemyPosition = enemy.HumanoidRootPart.Position
+                        local distance = (playerPosition - enemyPosition).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            nearestEnemy = enemy
+                        end
                     end
                 end
             end
