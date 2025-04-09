@@ -330,7 +330,7 @@ local Tabs = {
 
 -- Tạo mapping giữa các map và danh sách mob tương ứng
 local mobsByWorld = {
-    ["SoloWorld"] = {"Soondoo", "Gonshee", "Daek", "Longin", "Anders", "Largalgan"},
+    ["SoloWorld"] = {"Soondoo", "Gonshee", "Daek", "LongIn", "Anders", "Largalgan"},
     ["NarutoWorld"] = {"Snake Man", "Blossom", "Black Crow"},
     ["OPWorld"] = {"Shark Man", "Eminel", "Light Admiral"},
     ["BleachWorld"] = {"Luryu", "Fyakuya", "Genji"},
