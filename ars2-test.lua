@@ -281,10 +281,8 @@ local function attackEnemy()
     end
 end
 
--- Farm Method Selection Dropdown
-local Fluent
-local SaveManager
-local InterfaceManager
+-- Ensure Fluent, SaveManager, and InterfaceManager are properly initialized
+local Fluent, SaveManager, InterfaceManager
 
 local success, err = pcall(function()
     Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -293,18 +291,20 @@ local success, err = pcall(function()
 end)
 
 if not success then
-    warn("Lỗi khi tải thư viện Fluent: " .. tostring(err))
-    -- Thử tải từ URL dự phòng
-    pcall(function()
-        Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.lua"))()
-        SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-        InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-    end)
+    warn("Failed to load Fluent libraries: " .. tostring(err))
+    Fluent, SaveManager, InterfaceManager = nil, nil, nil
 end
 
 if not Fluent then
-    error("Không thể tải thư viện Fluent. Vui lòng kiểm tra kết nối internet hoặc executor.")
-    return
+    error("Fluent library is not initialized. Please check your internet connection or executor.")
+end
+
+-- Ensure SaveManager and InterfaceManager are initialized before using them
+if SaveManager and InterfaceManager then
+    SaveManager:SetLibrary(Fluent)
+    InterfaceManager:SetLibrary(Fluent)
+else
+    warn("SaveManager or InterfaceManager is not initialized. Some features may not work.")
 end
 
 local Window = Fluent:CreateWindow({
@@ -2145,15 +2145,24 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
+    if not Tabs or type(Tabs) ~= "table" then
+        warn("Tabs is not properly initialized.")
+        return
+    end
+
     for _, tab in pairs(Tabs) do
-        for _, element in pairs(tab._components) do
-            if element.OnChanged then
-                element.OnChanged:Connect(function()
-                    pcall(function()
-                        SaveManager:Save("AutoSave_" .. playerName)
+        if tab and type(tab._components) == "table" then
+            for _, element in pairs(tab._components) do
+                if element and typeof(element.OnChanged) == "function" then
+                    element.OnChanged:Connect(function()
+                        pcall(function()
+                            SaveManager:Save("AutoSave_" .. playerName)
+                        end)
                     end)
                 end
             end
+        else
+            warn("Tab components are not properly initialized.")
         end
     end
 end
