@@ -330,7 +330,7 @@ local Tabs = {
 
 -- Tạo mapping giữa các map và danh sách mob tương ứng
 local mobsByWorld = {
-    ["SoloWorld"] = {"Soondoo", "Gonshee", "Daek", "LongIn", "Anders", "Largalgan"},
+    ["SoloWorld"] = {"Soondoo", "Gonshee", "Daek", "Longin", "Anders", "Largalgan"},
     ["NarutoWorld"] = {"Snake Man", "Blossom", "Black Crow"},
     ["OPWorld"] = {"Shark Man", "Eminel", "Light Admiral"},
     ["BleachWorld"] = {"Luryu", "Fyakuya", "Genji"},
@@ -572,7 +572,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- Cập nhật HRP khi nhân vật hồi sinh
 player.CharacterAdded:Connect(function(newCharacter)
     character = newCharacter
-    hrp = newCharacter:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
+    hrp = character:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
 end)
 
 -- Hàm di chuyển (Luôn sử dụng HRP mới nhất)
@@ -2144,15 +2144,24 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
+    if not Tabs or type(Tabs) ~= "table" then
+        warn("Tabs is not properly initialized.")
+        return
+    end
+
     for _, tab in pairs(Tabs) do
-        for _, element in pairs(tab._components) do
-            if element.OnChanged then
-                element.OnChanged:Connect(function()
-                    pcall(function()
-                        SaveManager:Save("AutoSave_" .. playerName)
+        if tab and type(tab._components) == "table" then
+            for _, element in pairs(tab._components) do
+                if element.OnChanged then
+                    element.OnChanged:Connect(function()
+                        pcall(function()
+                            SaveManager:Save("AutoSave_" .. playerName)
+                        end)
                     end)
-                end)
+                end
             end
+        else
+            warn("Tab components are not properly initialized.")
         end
     end
 end
@@ -2160,67 +2169,6 @@ end
 -- Thực thi tự động lưu/tải cấu hình
 AutoSaveConfig()
 setupSaveEvents() -- Thêm dòng này
-
-local position1 = Vector3.new(325.349365234375, 28.08351707458496, 1.5231389999389648)
-local position2 = Vector3.new(8.039727210998535, 28.27944564819336, -222.96218872070312)
-
-local group1Enemies = {"Soondoo", "Gonshee", "Daek"}
-local group2Enemies = {"LongIn", "Anders", "Largalgan"}
-
-local function moveToPosition(position)
-    if hrp then
-        hrp.CFrame = CFrame.new(position)
-    end
-end
-
-local function findEnemyInGroup(group)
-    for _, enemy in ipairs(enemiesFolder:GetChildren()) do
-        if enemy:IsA("Model") and enemy:FindFirstChild("HumanoidRootPart") then
-            local healthBar = enemy:FindFirstChild("HealthBar")
-            if healthBar and healthBar:FindFirstChild("Main") and healthBar.Main:FindFirstChild("Title") then
-                local title = healthBar.Main.Title
-                if title and title:IsA("TextLabel") and table.find(group, title.ContentText) then
-                    return enemy
-                end
-            end
-        end
-    end
-    return nil
-end
-
-local function handleEnemySelection(selectedEnemy)
-    if table.find(group1Enemies, selectedEnemy) then
-        moveToPosition(position1)
-        task.wait(1) -- Wait for scanning
-        local enemy = findEnemyInGroup(group1Enemies)
-        if enemy then
-            moveToTarget(enemy)
-        else
-            moveToPosition(position2)
-        end
-    elseif table.find(group2Enemies, selectedEnemy) then
-        moveToPosition(position2)
-        task.wait(1) -- Wait for scanning
-        local enemy = findEnemyInGroup(group2Enemies)
-        if enemy then
-            moveToTarget(enemy)
-        else
-            moveToPosition(position1)
-        end
-    end
-end
-
-Tabs.Main:AddDropdown("EnemySelection", {
-    Title = "Select Enemy",
-    Values = {"Soondoo", "Gonshee", "Daek", "LongIn", "Anders", "Largalgan"},
-    Multi = false,
-    Default = "",
-    Callback = function(selectedEnemy)
-        task.spawn(function()
-            handleEnemySelection(selectedEnemy)
-        end)
-    end
-})
 
 
 
