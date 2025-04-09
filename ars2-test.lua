@@ -2145,24 +2145,15 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
-    if not Tabs or type(Tabs) ~= "table" then
-        warn("Tabs is not properly initialized.")
-        return
-    end
-
     for _, tab in pairs(Tabs) do
-        if tab and type(tab._components) == "table" then
-            for _, element in pairs(tab._components) do
-                if element.OnChanged then
-                    element.OnChanged:Connect(function()
-                        pcall(function()
-                            SaveManager:Save("AutoSave_" .. playerName)
-                        end)
+        for _, element in pairs(tab._components) do
+            if element.OnChanged then
+                element.OnChanged:Connect(function()
+                    pcall(function()
+                        SaveManager:Save("AutoSave_" .. playerName)
                     end)
                 end
             end
-        else
-            warn("Tab components are not properly initialized.")
         end
     end
 end
