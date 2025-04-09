@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -572,7 +573,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- Cập nhật HRP khi nhân vật hồi sinh
 player.CharacterAdded:Connect(function(newCharacter)
     character = newCharacter
-    hrp = character:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
+    hrp = newCharacter:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
 end)
 
 -- Hàm di chuyển (Luôn sử dụng HRP mới nhất)
@@ -2144,24 +2145,15 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
-    if not Tabs or type(Tabs) ~= "table" then
-        warn("Tabs is not properly initialized.")
-        return
-    end
-
     for _, tab in pairs(Tabs) do
-        if tab and type(tab._components) == "table" then
-            for _, element in pairs(tab._components) do
-                if element.OnChanged then
-                    element.OnChanged:Connect(function()
-                        pcall(function()
-                            SaveManager:Save("AutoSave_" .. playerName)
-                        end)
+        for _, element in pairs(tab._components) do
+            if element.OnChanged then
+                element.OnChanged:Connect(function()
+                    pcall(function()
+                        SaveManager:Save("AutoSave_" .. playerName)
                     end)
-                end
+                end)
             end
-        else
-            warn("Tab components are not properly initialized.")
         end
     end
 end
@@ -2169,6 +2161,79 @@ end
 -- Thực thi tự động lưu/tải cấu hình
 AutoSaveConfig()
 setupSaveEvents() -- Thêm dòng này
+
+-- Add functionality to move to selected enemy without conflicts
+local zone1Enemies = {"Soondoo", "Gonshee", "Daek"}
+local zone2Enemies = {"LongIn", "Anders", "Largalgan"}
+local allEnemies = {"Soondoo", "Gonshee", "Daek", "LongIn", "Anders", "Largalgan"}
+
+local position1 = Vector3.new(325.349365234375, 28.08351707458496, 1.5231389999389648)
+local position2 = Vector3.new(-39.65372085571289, 30.901124954223633, -141.8142852783203)
+
+local selectedEnemyName = nil
+local lastEnemy = nil
+
+local function moveTo(position)
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(position)})
+    tween:Play()
+end
+
+local function getNearestEnemyByName(name)
+    local folder = workspace.__Main.__Enemies:FindFirstChild("Client")
+    if not folder then return nil end
+
+    local closest, minDist = nil, math.huge
+    for _, enemy in pairs(folder:GetChildren()) do
+        local head = enemy:FindFirstChild("Head")
+        local title = enemy:FindFirstChild("HealthBar") and enemy.HealthBar:FindFirstChild("Main") and enemy.HealthBar.Main:FindFirstChild("Title")
+        if head and title and title:IsA("TextLabel") and title.Text == name then
+            local dist = (head.Position - hrp.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                closest = enemy
+            end
+        end
+    end
+    return closest
+end
+
+Tabs.Main:AddDropdown("EnemySelection", {
+    Title = "Select Enemy",
+    Values = allEnemies,
+    Multi = false,
+    Default = "",
+    Callback = function(name)
+        selectedEnemyName = name
+        lastEnemy = nil
+    end
+})
+
+RunService.RenderStepped:Connect(function()
+    if not selectedEnemyName then return end
+
+    if lastEnemy then
+        local amount = lastEnemy:FindFirstChild("HealthBar") and lastEnemy.HealthBar:FindFirstChild("Main") and lastEnemy.HealthBar.Main:FindFirstChild("Bar") and lastEnemy.HealthBar.Main.Bar:FindFirstChild("Amount")
+        if not lastEnemy:FindFirstChild("Head") or not amount or not amount:IsA("TextLabel") or tonumber(amount.Text) == 0 then
+            lastEnemy = nil
+        end
+    end
+
+    if not lastEnemy then
+        lastEnemy = getNearestEnemyByName(selectedEnemyName)
+        if not lastEnemy then
+            if table.find(zone1Enemies, selectedEnemyName) then
+                moveTo(position1)
+            elseif table.find(zone2Enemies, selectedEnemyName) then
+                moveTo(position2)
+            end
+        end
+    end
+
+    if lastEnemy and lastEnemy:FindFirstChild("Head") then
+        moveTo(lastEnemy.Head.Position)
+    end
+end)
 
 
 
