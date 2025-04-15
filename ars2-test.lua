@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -19,7 +18,11 @@ local farmingStyle = "Default" -- Phong cách farm mặc định
 
 -- Hệ thống lưu trữ mới
 local ConfigSystem = {}
-ConfigSystem.FileName = "AriseConfigV2_" .. player.Name .. ".json"
+local HttpService = game:GetService("HttpService")
+ConfigSystem.Folder = "KaihonScriptHub"
+ConfigSystem.SubFolder = "AriseCrossover"
+ConfigSystem.FileName = player.Name .. "_Config.json"
+ConfigSystem.FilePath = ConfigSystem.Folder .. "/" .. ConfigSystem.SubFolder .. "/" .. ConfigSystem.FileName
 ConfigSystem.DefaultConfig = {
     SelectedMobName = "",
     FarmSelectedMob = false,
@@ -27,44 +30,176 @@ ConfigSystem.DefaultConfig = {
     MainAutoDestroy = false,
     MainAutoArise = false,
     FarmingMethod = "Tween",
-    DamageMobs = false
+    DamageMobs = false,
+    SelectedShop = "WeaponShop1",
+    SelectedWeapon = "",
+    AutoBuyEnabled = false,
+    AutoScanEnabled = false,
+    ScanDelay = 1,
+    SelectedRanks = {},
+    AutoSellEnabled = false
 }
 ConfigSystem.CurrentConfig = {}
 
--- Hàm để lưu cấu hình
-ConfigSystem.SaveConfig = function()
-    local success, err = pcall(function()
-        writefile(ConfigSystem.FileName, game:GetService("HttpService"):JSONEncode(ConfigSystem.CurrentConfig))
-    end)
-    if success then
-        print("Đã lưu cấu hình thành công!")
-    else
-        warn("Lưu cấu hình thất bại:", err)
-    end
-end
-
--- Hàm để tải cấu hình
-ConfigSystem.LoadConfig = function()
-    local success, content = pcall(function()
-        if isfile(ConfigSystem.FileName) then
-            return readfile(ConfigSystem.FileName)
+-- Hàm tạo thư mục nếu không tồn tại
+ConfigSystem.CreateFolders = function()
+    -- Thử các phương thức khác nhau để tạo thư mục trên nhiều executor
+    local success = pcall(function()
+        if makefolder then
+            if not isfolder(ConfigSystem.Folder) then
+                makefolder(ConfigSystem.Folder)
+            end
+            
+            if not isfolder(ConfigSystem.Folder .. "/" .. ConfigSystem.SubFolder) then
+                makefolder(ConfigSystem.Folder .. "/" .. ConfigSystem.SubFolder)
+            end
         end
-        return nil
     end)
     
-    if success and content then
-        local data = game:GetService("HttpService"):JSONDecode(content)
-        ConfigSystem.CurrentConfig = data
+    return success
+end
+
+-- Hàm để lưu cấu hình (thử nhiều phương thức)
+ConfigSystem.SaveConfig = function()
+    -- Đảm bảo thư mục tồn tại
+    ConfigSystem.CreateFolders()
+    
+    -- Mã hóa cấu hình thành chuỗi JSON
+    local jsonData = HttpService:JSONEncode(ConfigSystem.CurrentConfig)
+    
+    -- Thử các phương thức lưu khác nhau
+    local success, err = pcall(function()
+        -- Phương thức 1: writefile trực tiếp (Synapse X, KRNL, Script-Ware)
+        if writefile then
+            writefile(ConfigSystem.FilePath, jsonData)
+            return true
+        end
+        
+        -- Phương thức 2: Sử dụng SaveInstance (một số executor khác)
+        if saveinstance then
+            saveinstance(ConfigSystem.FilePath, jsonData)
+            return true
+        end
+        
+        -- Phương thức 3: Fluxus và một số executor khác
+        if fluxus and fluxus.save_file then
+            fluxus.save_file(ConfigSystem.FilePath, jsonData)
+            return true
+        end
+        
+        -- Phương thức 4: Delta và một số executor khác
+        if delta_config and delta_config.save then
+            delta_config.save(ConfigSystem.FilePath, jsonData)
+            return true
+        end
+        
+        -- Phương thức 5: Codex
+        if writefile and getrenv().writefile then
+            getrenv().writefile(ConfigSystem.FilePath, jsonData)
+            return true
+        end
+        
+        return false
+    end)
+    
+    if success then
+        print("Đã lưu cấu hình thành công vào: " .. ConfigSystem.FilePath)
         return true
     else
-        ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
-        ConfigSystem.SaveConfig()
+        warn("Lưu cấu hình thất bại:", err)
         return false
     end
 end
 
+-- Hàm để tải cấu hình (thử nhiều phương thức)
+ConfigSystem.LoadConfig = function()
+    -- Thử các phương thức đọc khác nhau
+    local success, content = pcall(function()
+        -- Phương thức 1: readfile chuẩn (Synapse X, KRNL, Script-Ware)
+        if readfile and isfile and isfile(ConfigSystem.FilePath) then
+            return readfile(ConfigSystem.FilePath)
+        end
+        
+        -- Phương thức 2: Fluxus
+        if fluxus and fluxus.read_file and fluxus.file_exists and fluxus.file_exists(ConfigSystem.FilePath) then
+            return fluxus.read_file(ConfigSystem.FilePath)
+        end
+        
+        -- Phương thức 3: Delta
+        if delta_config and delta_config.load and delta_config.exists and delta_config.exists(ConfigSystem.FilePath) then
+            return delta_config.load(ConfigSystem.FilePath)
+        end
+        
+        -- Phương thức 4: Codex
+        if readfile and getrenv().readfile and isfile and getrenv().isfile and getrenv().isfile(ConfigSystem.FilePath) then
+            return getrenv().readfile(ConfigSystem.FilePath)
+        end
+        
+        return nil
+    end)
+    
+    if success and content then
+        local data
+        success, data = pcall(function()
+            return HttpService:JSONDecode(content)
+        end)
+        
+        if success and data then
+            ConfigSystem.CurrentConfig = data
+            print("Đã tải cấu hình từ: " .. ConfigSystem.FilePath)
+            return true
+        else
+            warn("Lỗi khi phân tích cấu hình, tạo mới.")
+        end
+    end
+    
+    -- Nếu không đọc được hoặc có lỗi, tạo cấu hình mặc định
+    ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
+    ConfigSystem.SaveConfig()
+    print("Khởi tạo cấu hình mới")
+    return false
+end
+
+-- Tạo một hệ thống auto save riêng
+local function setupAutoSave()
+    spawn(function()
+        while wait(5) do -- Lưu mỗi 5 giây
+            pcall(function()
+                ConfigSystem.SaveConfig()
+            end)
+        end
+    end)
+end
+
 -- Tải cấu hình khi khởi động
 ConfigSystem.LoadConfig()
+setupAutoSave() -- Bắt đầu auto save
+
+-- Cập nhật hàm để lưu ngay khi thay đổi giá trị
+local function setupSaveEvents()
+    for _, tab in pairs(Tabs) do
+        if tab and tab._components then
+            for _, element in pairs(tab._components) do
+                if element and element.OnChanged then
+                    element.OnChanged:Connect(function()
+                        pcall(function()
+                            ConfigSystem.SaveConfig()
+                        end)
+                    end)
+                end
+            end
+        end
+    end
+end
+
+-- Thiết lập SaveManager của Fluent để tương thích
+local playerName = game:GetService("Players").LocalPlayer.Name
+if InterfaceManager then
+    InterfaceManager:SetFolder("KaihonScriptHub")
+end
+if SaveManager then
+    SaveManager:SetFolder("KaihonScriptHub/AriseCrossover/" .. playerName)
+end
 
 -- Tự động phát hiện HumanoidRootPart mới khi người chơi hồi sinh
 player.CharacterAdded:Connect(function(newCharacter)
@@ -103,6 +238,11 @@ local function isEnemyDead(enemy)
 end
 
 local function getNearestSelectedEnemy()
+    -- Nếu không tìm thấy quái vật nào trong 5 giây, làm mới danh sách
+    if not selectedEnemyFoundTime or os.time() - selectedEnemyFoundTime > 5 then
+        killedNPCs = {} -- Đặt lại danh sách quái vật đã tiêu diệt
+    end
+
     local nearestEnemy = nil
     local shortestDistance = math.huge
     local playerPosition = hrp.Position
@@ -123,6 +263,11 @@ local function getNearestSelectedEnemy()
             end
         end
     end
+
+    if nearestEnemy then
+        selectedEnemyFoundTime = os.time() -- Cập nhật thời gian tìm thấy quái vật
+    end
+    
     return nearestEnemy
 end
 
@@ -234,8 +379,18 @@ local function teleportDungeon()
 end
 
 local function teleportToSelectedEnemy()
+    local lastResetTime = os.time()
+    
     while teleportEnabled do
         local target = getNearestSelectedEnemy()
+        
+        -- Nếu không tìm thấy mục tiêu trong 3 giây, làm mới danh sách
+        if not target and os.time() - lastResetTime > 3 then
+            killedNPCs = {}
+            lastResetTime = os.time()
+            print("Đã làm mới danh sách quái vật đã tiêu diệt")
+        end
+        
         if target and target.Parent then
             anticheat()
             moveToTarget(target)
@@ -262,27 +417,10 @@ local function teleportToSelectedEnemy()
     end
 end
 
-local function attackEnemy()
-    while damageEnabled do
-        local targetEnemy = getNearestEnemy()
-        if targetEnemy then
-            local args = {
-                [1] = {
-                    [1] = {
-                        ["Event"] = "PunchAttack",
-                        ["Enemy"] = targetEnemy.Name
-                    },
-                    [2] = "\4"
-                }
-            }
-            remote:FireServer(unpack(args))
-        end
-        task.wait(1)
-    end
-end
-
--- Ensure Fluent, SaveManager, and InterfaceManager are properly initialized
-local Fluent, SaveManager, InterfaceManager
+-- Farm Method Selection Dropdown
+local Fluent
+local SaveManager
+local InterfaceManager
 
 local success, err = pcall(function()
     Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -291,20 +429,18 @@ local success, err = pcall(function()
 end)
 
 if not success then
-    warn("Failed to load Fluent libraries: " .. tostring(err))
-    Fluent, SaveManager, InterfaceManager = nil, nil, nil
+    warn("Lỗi khi tải thư viện Fluent: " .. tostring(err))
+    -- Thử tải từ URL dự phòng
+    pcall(function()
+        Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.lua"))()
+        SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+        InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+    end)
 end
 
 if not Fluent then
-    error("Fluent library is not initialized. Please check your internet connection or executor.")
-end
-
--- Ensure SaveManager and InterfaceManager are initialized before using them
-if SaveManager and InterfaceManager then
-    SaveManager:SetLibrary(Fluent)
-    InterfaceManager:SetLibrary(Fluent)
-else
-    warn("SaveManager or InterfaceManager is not initialized. Some features may not work.")
+    error("Không thể tải thư viện Fluent. Vui lòng kiểm tra kết nối internet hoặc executor.")
+    return
 end
 
 local Window = Fluent:CreateWindow({
@@ -323,9 +459,8 @@ local Tabs = {
     tp = Window:AddTab({ Title = "Teleports", Icon = "" }),
     mount = Window:AddTab({ Title = "Mount Location/farm", Icon = "" }),
     dungeon = Window:AddTab({ Title = "Dungeon ", Icon = "" }),
-    pets = Window:AddTab({ Title = "Pets ", Icon = "" }),
+    shop = Window:AddTab({ Title = "Shop", Icon = "" }),
     Player = Window:AddTab({ Title = "Player", Icon = "" }),
-    misc = Window:AddTab({ Title = "misc", Icon = "" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -337,7 +472,8 @@ local mobsByWorld = {
     ["BleachWorld"] = {"Luryu", "Fyakuya", "Genji"},
     ["BCWorld"] = {"Sortudo", "Michille", "Wind"},
     ["ChainsawWorld"] = {"Heaven", "Zere", "Ika"},
-    ["JojoWorld"] = {"Diablo", "Gosuke", "Golyne"}
+    ["JojoWorld"] = {"Diablo", "Gosuke", "Golyne"},
+    ["DBWorld"] = {"Turtle", "Green", "Sky"}
 }
 
 local selectedWorld = "SoloWorld" -- Default world
@@ -345,7 +481,7 @@ local selectedWorld = "SoloWorld" -- Default world
 -- Dropdown để chọn World/Map
 Tabs.Main:AddDropdown("WorldDropdown", {
     Title = "Select World",
-    Values = {"SoloWorld", "NarutoWorld", "OPWorld", "BleachWorld", "BCWorld", "ChainsawWorld", "JojoWorld"},
+    Values = {"SoloWorld", "NarutoWorld", "OPWorld", "BleachWorld", "BCWorld", "ChainsawWorld", "JojoWorld", "DBWorld"},
     Multi = false,
     Default = selectedWorld,
     Callback = function(world)
@@ -423,33 +559,6 @@ local Dropdown = Tabs.Main:AddDropdown("MovementMethod", {
         movementMethod = option
         ConfigSystem.CurrentConfig.FarmingMethod = option
         ConfigSystem.SaveConfig()
-    end
-})
-
-Tabs.Main:AddToggle("DamageMobs", {
-    Title = "Damage Mobs ENABLE THIS",
-    Default = ConfigSystem.CurrentConfig.DamageMobs or false,
-    Callback = function(state)
-        damageEnabled = state
-        ConfigSystem.CurrentConfig.DamageMobs = state
-        ConfigSystem.SaveConfig()
-        if state then
-            task.spawn(attackEnemy)
-        end
-    end
-})
-
-
-
-Tabs.dungeon:AddToggle("TeleportMobs", { 
-    Title = "Auto farm Dungeon", 
-    Default = false, 
-    Flag = "AutoFarmDungeon", -- Thêm Flag để lưu cấu hình
-    Callback = function(state) 
-        teleportEnabled = state 
-        if state then 
-            task.spawn(teleportDungeon) 
-        end 
     end 
 })
 
@@ -470,6 +579,62 @@ Tabs.Main:AddToggle("GamepassShadowFarm", {
             -- Tắt tính năng
             attackatri:SetAttribute("AutoAttack", false)
             print("Shadow farm đã tắt")
+        end
+    end
+})
+
+-- Thêm Auto Attack toggle
+local autoAttackEnabled = false
+local attackCooldown = 0.5
+
+Tabs.Main:AddToggle("AutoAttackToggle", {
+    Title = "Auto Attack Mobs",
+    Default = false,
+    Callback = function(state)
+        autoAttackEnabled = state
+        
+        if state then
+            Fluent:Notify({
+                Title = "Auto Attack",
+                Content = "Đã bật tự động tấn công mobs",
+                Duration = 3
+            })
+            
+            -- Bắt đầu vòng lặp auto attack
+            task.spawn(function()
+                while autoAttackEnabled do
+                    local targetEnemy
+                    
+                    -- Kiểm tra xem Farm Selected Mob có đang bật không
+                    if ConfigSystem.CurrentConfig.FarmSelectedMob and selectedMobName ~= "" then
+                        -- Nếu đang farm mob đã chọn, tìm mob đó
+                        targetEnemy = getNearestSelectedEnemy()
+                    else
+                        -- Nếu không, tìm bất kỳ mob nào gần nhất
+                        targetEnemy = getNearestEnemy()
+                    end
+                    
+                    if targetEnemy then
+                        local args = {
+                            [1] = {
+                                [1] = {
+                                    ["Event"] = "PunchAttack",
+                                    ["Enemy"] = targetEnemy.Name
+                                },
+                                [2] = "\4"
+                            }
+                        }
+                        remote:FireServer(unpack(args))
+                    end
+                    task.wait(attackCooldown) -- Chờ giữa các lần tấn công
+                end
+            end)
+        else
+            Fluent:Notify({
+                Title = "Auto Attack",
+                Content = "Đã tắt tự động tấn công mobs",
+                Duration = 3
+            })
         end
     end
 })
@@ -558,6 +723,14 @@ Tabs.tp:AddButton({
     end
 })
 
+Tabs.tp:AddButton({
+    Title = "Dragon City",
+    Description = "Set spawn & reset",
+    Callback = function()
+        SetSpawnAndReset("DBWorld")
+    end
+})
+
 local TweenService = game:GetService("TweenService")
 
 
@@ -573,7 +746,7 @@ local hrp = character:WaitForChild("HumanoidRootPart")
 -- Cập nhật HRP khi nhân vật hồi sinh
 player.CharacterAdded:Connect(function(newCharacter)
     character = newCharacter
-    hrp = newCharacter:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
+    hrp = character:WaitForChild("HumanoidRootPart") -- Lấy HRP mới sau khi hồi sinh
 end)
 
 -- Hàm di chuyển (Luôn sử dụng HRP mới nhất)
@@ -670,9 +843,6 @@ local function fireArise()
         end
     end
 end
-
-
-
 
 
 -- Auto Destroy Toggle
@@ -929,131 +1099,6 @@ task.spawn(function()
     end
 end)
 
-local rankMapping = { "E", "D", "C", "B", "A", "S", "SS" }
-
--- Dropdown để chọn các cấp độ để bán
-local SellDropdown = Tabs.pets:AddDropdown("ChooseRankToSell", {
-    Title = "Choose Rank to Sell",
-    Values = rankMapping,
-    Multi = true,
-    Default = {}
-})
-
--- Dropdown để chọn pet cần giữ lại
-local KeepPetsDropdown = Tabs.pets:AddDropdown("ChoosePetsToKeep", {
-    Title = "Pets to Not Delete",
-    Values = {},
-    Multi = true,
-    Default = {}
-})
-
--- Nút để làm mới dropdown "Keep Pets"
-Tabs.pets:AddButton({
-    Title = "Refresh Keep Pets List",
-    Callback = function()
-        updateKeepPetsDropdown()
-    end
-})
-
--- Hàm để lấy pet theo cấp độ đã chọn
-local function getPetsByRank(selectedRanks, keepPets)
-    local player = game:GetService("Players").LocalPlayer
-    local petsFolder = player.leaderstats.Inventory:FindFirstChild("Pets")
-    if not petsFolder then return {} end
-
-    local petsByRank = {}  -- Lưu trữ pet theo cấp độ
-    local petsToSell = {}  -- Các pet sẽ được bán
-    local keepOnePet = {}  -- Đảm bảo chỉ giữ 1 pet mỗi loại đã chọn
-
-    for _, pet in ipairs(petsFolder:GetChildren()) do
-        local rankValue = pet:GetAttribute("Rank")
-        local petName = pet.Name
-
-        if rankValue and rankMapping[rankValue] and selectedRanks[rankMapping[rankValue]] then
-            petsByRank[rankMapping[rankValue]] = petsByRank[rankMapping[rankValue]] or {}
-            table.insert(petsByRank[rankMapping[rankValue]], petName)
-        end
-    end
-
-    -- Xử lý từng cấp độ
-    for rank, petList in pairs(petsByRank) do
-        table.sort(petList) -- Sắp xếp pet để đảm bảo tính nhất quán
-
-        local keptOne = false
-        for _, pet in ipairs(petList) do
-            if keepPets[pet] then
-                if not keepOnePet[pet] then
-                    keepOnePet[pet] = true -- Chỉ giữ 1 bản sao của pet này
-                    keptOne = true
-                else
-                    table.insert(petsToSell, pet) -- Bán các bản sao thừa
-                end
-            elseif not keptOne then
-                keptOne = true -- Đảm bảo ít nhất 1 pet mỗi cấp độ được giữ lại
-            else
-                table.insert(petsToSell, pet) -- Bán các pet còn lại
-            end
-        end
-    end
-
-    return petsToSell
-end
-
--- Hàm để bán pet
-local function sellPets()
-    local selectedRanks = SellDropdown.Value
-    local keepPets = KeepPetsDropdown.Value
-    local pets = getPetsByRank(selectedRanks, keepPets)
-
-    if #pets > 0 then
-        local args = {
-            [1] = {
-                [1] = {
-                    ["Event"] = "SellPet",
-                    ["Pets"] = pets
-                },
-                [2] = "\t"
-            }
-        }
-        game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-    end
-end
-
--- Hàm để cập nhật dropdown "Keep Pets"
-function updateKeepPetsDropdown()
-    local player = game:GetService("Players").LocalPlayer
-    local petsFolder = player.leaderstats.Inventory:FindFirstChild("Pets")
-    if not petsFolder then return end
-
-    local petNames = {} -- Mảng cho dropdown
-
-    for _, pet in ipairs(petsFolder:GetChildren()) do
-        if not table.find(petNames, pet.Name) then
-            table.insert(petNames, pet.Name) -- Thêm tên pet chỉ một lần
-        end
-    end
-
-    KeepPetsDropdown:SetValues(petNames) -- Cập nhật dropdown với tên pet
-end
-
--- Bắt đầu vòng lặp bán
-local function startSellingLoop()
-    while true do
-        sellPets()
-        wait(1) -- Ngăn spam
-    end
-end
-
--- Chạy vòng lặp trong một luồng riêng biệt
-spawn(startSellingLoop)
-
--- Khởi tạo dropdown pet khi bắt đầu
-updateKeepPetsDropdown()
-
--- Làm mới danh sách pet khi dropdown thay đổi
-SellDropdown:OnChanged(updateKeepPetsDropdown)
-KeepPetsDropdown:OnChanged(updateKeepPetsDropdown)
-
 local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
@@ -1083,342 +1128,6 @@ local AntiAfkToggle = Tabs.Player:AddToggle("AntiAfk", {
         end
     end
 })
-
-
-
-local function getUniqueWeaponNames()
-    local weapons = {}
-    local seenNames = {} -- Để theo dõi tên duy nhất
-
-    local playerWeapons = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Weapons:GetChildren()
-    print("Đang lấy danh sách vũ khí...") -- GỠ LỖI
-
-    for _, weapon in ipairs(playerWeapons) do
-        local weaponName = weapon:GetAttribute("Name") -- Lấy thuộc tính "Name"
-        if weaponName then
-            print("Đã tìm thấy vũ khí:", weaponName) -- GỠ LỖI
-            if not seenNames[weaponName] then
-                table.insert(weapons, weaponName)
-                seenNames[weaponName] = true -- Đánh dấu tên đã thấy
-            end
-        end
-    end
-    return weapons
-end
-
--- Tạo dropdown với tên vũ khí **duy nhất**
-local weaponNames = getUniqueWeaponNames()
-local WeaponDropdown = Tabs.misc:AddDropdown("WeaponDropdown", {
-    Title = "Select Weapon to Upgrade",
-    Description = "Choose a weapon to upgrade",
-    Values = weaponNames,
-    Multi = false, -- Chọn một
-    Default = ""
-})
-
--- Dropdown để chọn cấp độ nâng cấp (2-6)
-local LevelDropdown = Tabs.misc:AddDropdown("LevelDropdown", {
-    Title = "Select Upgrade Level",
-    Description = "Choose the level for upgrade",
-    Values = {"2", "3", "4", "5", "6", "7"},
-    Multi = false,
-    Default = "2"
-})
-
--- Bật/tắt tự động nâng cấp vũ khí
- local AutoUpgradeToggle = Tabs.misc:AddToggle("AutoUpgradeToggle", { Title = "Auto Upgrade Weapon", Default = false })
-
-local function AutoUpgradeWeapon()
-    while AutoUpgradeToggle.Value do
-        local selectedWeapon = WeaponDropdown.Value
-        local selectedLevel = tonumber(LevelDropdown.Value) or 2
-
-        if selectedWeapon and selectedWeapon ~= "" then
-            local args = {
-                [1] = {
-                    [1] = {
-                        ["Type"] = selectedWeapon,
-                        ["BuyType"] = "Gems",
-                        ["Weapons"] = {},
-                        ["Event"] = "UpgradeWeapon",
-                        ["Level"] = selectedLevel
-                    },
-                    [2] = "\n"
-                }
-            }
-
-            game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-            task.wait(0.1) -- Điều chỉnh độ trễ nếu cần
-        else
-            Fluent:Notify({
-                Title = "Error",
-                Content = "Vui lòng chọn vũ khí trước khi nâng cấp.",
-                Duration = 5
-            })
-            print("LỖI: Không có vũ khí nào được chọn!") -- GỠ LỖI
-            break
-        end
-    end
-end
-
-AutoUpgradeToggle:OnChanged(function(Value)
-    if Value then
-        task.spawn(AutoUpgradeWeapon) -- Bắt đầu nâng cấp trong một luồng riêng biệt
-    end
-end)
-
- local TeleportService = game:GetService("TeleportService")
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local AppearFolder = workspace:FindFirstChild("__Extra") and workspace.__Extra:FindFirstChild("__Appear")
-
-local locations = {
-    {Name = "Location 1", CFrame = CFrame.new(-6161.25781, 140.639832, 5512.9668)},
-    {Name = "Location 2", CFrame = CFrame.new(-5868.44141, 132.70488, 362.519379)},
-    {Name = "Location 3", CFrame = CFrame.new(-5430.81006, 107.441559, -5502.25244)},
-    {Name = "Location 4", CFrame = CFrame.new(-702.243225, 133.344467, -3538.11646)},
-    {Name = "Location 5", CFrame = CFrame.new(450.001709, 117.564827, 3435.4292)},
-    {Name = "Location 6", CFrame = CFrame.new(3230.96826, 135.41008, 36.1600113)},
-    {Name = "Location 7", CFrame = CFrame.new(4325.36523, 118.995422, -4819.78857)}
-}
-
-local PlaceID = game.PlaceId
-local AllIDs = {}
-local foundAnything = ""
-local actualHour = os.date("!*t").hour
-local File = pcall(function()
-    AllIDs = game:GetService('HttpService'):JSONDecode(readfile("NotSameServers.json"))
-end)
-
-if not File then
-    table.insert(AllIDs, actualHour)
-    writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
-end
-
-function TPReturner()
-    local Site
-    if foundAnything == "" then
-        Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
-    else
-        Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
-    end
-    local ID = ""
-    if Site.nextPageCursor and Site.nextPageCursor ~= "null" and Site.nextPageCursor ~= nil then
-        foundAnything = Site.nextPageCursor
-    end
-    local num = 0
-    for _, v in pairs(Site.data) do
-        local Possible = true
-        ID = tostring(v.id)
-        if tonumber(v.maxPlayers) > tonumber(v.playing) then
-            for _, Existing in pairs(AllIDs) do
-                if num ~= 0 then
-                    if ID == tostring(Existing) then
-                        Possible = false
-                    end
-                else
-                    if tonumber(actualHour) ~= tonumber(Existing) then
-                        local delFile = pcall(function()
-                            delfile("NotSameServers.json")
-                            AllIDs = {}
-                            table.insert(AllIDs, actualHour)
-                        end)
-                    end
-                end
-                num = num + 1
-            end
-            if Possible then
-                table.insert(AllIDs, ID)
-                wait()
-                pcall(function()
-                    writefile("NotSameServers.json", game:GetService('HttpService'):JSONEncode(AllIDs))
-                    wait()
-                    game:GetService("TeleportService"):TeleportToPlaceInstance(PlaceID, ID, Players.LocalPlayer)
-                end)
-                wait(4)
-                break -- Thoát vòng lặp sau khi tìm thấy máy chủ phù hợp để dịch chuyển đến
-            end
-        end
-    end
-end
-
-local function hasSpawned()
-    return AppearFolder and #AppearFolder:GetChildren() > 0
-end
-
-local function tweenTeleport(targetCFrame)
-    if not Character or not Character:FindFirstChild("HumanoidRootPart") then return end
-    local HRP = Character.HumanoidRootPart
-    local Tween = TweenService:Create(HRP, TweenInfo.new(2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = targetCFrame})
-    Tween:Play()
-    Tween.Completed:Wait()
-end
-local function fireProximityPrompts()
-    if not AppearFolder then return end
-    for _, mount in ipairs(AppearFolder:GetChildren()) do
-        for _, descendant in ipairs(mount:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                fireproximityprompt(descendant)
-            end
-        end
-    end
-end
-
-local DelayToggle = false
-
-local function checkMountsAndTeleport()
-    local inventoryMounts = {}
-    for _, mount in ipairs(LocalPlayer.leaderstats.Inventory.Mounts:GetChildren()) do
-        table.insert(inventoryMounts, mount.Name:sub(1, 4))
-    end
-
-    for _, mount in ipairs(AppearFolder:GetChildren()) do
-        local mountId = mount.Name:sub(1, 4)
-        for _, invMount in ipairs(inventoryMounts) do
-            if mountId == invMount then
-                Fluent:Notify({
-                    Title = "Mount Detected!",
-                    Content = "Tìm thấy mount trùng khớp! Đang chuyển máy chủ...",
-                    Duration = 5
-                })
-                TPReturner()
-                return
-            end
-        end
-    end
-  for _, mount in ipairs(AppearFolder:GetChildren()) do
-        local targetPosition = mount:GetPivot()
-        tweenTeleport(targetPosition)
-
-        if DelayToggle then
-            task.wait(15)  -- Đợi 15 giây CHỈ KHI bật toggle
-        end
-
-        fireProximityPrompts()
-    end
-end
-
-local function teleportSequence()
-    for _, loc in ipairs(locations) do
-        tweenTeleport(loc.CFrame)
-        task.wait(3)
-
-        if hasSpawned() then
-            checkMountsAndTeleport()
-            Fluent:Notify({
-                Title = "Mount Collected!",
-                Content = "Đang chuyển máy chủ...",
-                Duration = 5
-            })
-            TPReturner()
-            return
-        end
-    end
-    TPReturner()
-end
-
-
-
-
-local TeleportToggle = Tabs.mount:AddToggle("AutoTeleport", {Title = "Auto Find Mount (serverHop)", Default = false })
-
-TeleportToggle:OnChanged(function(enabled)
-    if enabled then
-        teleportSequence()
-    end
-end)
-
-local DelayToggleOption = Tabs.mount:AddToggle("DelayBeforeFire", {Title = "Wait 15s ENABLE THIS IF U GET KICKED", Default = false })
-
-DelayToggleOption:OnChanged(function(enabled)
-    DelayToggle = enabled
-end)
-
-
-
-local function getUniquePetNames()
-    local pets = {}
-    local seenNames = {} -- To track unique names
-
-    local playerPets = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Pets:GetChildren()
-    print("Fetching pets...") -- DEBUG
-
-    for _, pet in ipairs(playerPets) do
-        local petName = pet:GetAttribute("Name") -- Get "Name" attribute
-        if petName then
-            print("Found Pet:", petName) -- DEBUG
-            if not seenNames[petName] then
-                table.insert(pets, petName)
-                seenNames[petName] = true -- Mark name as seen
-            end
-        end
-    end
-    return pets
-end
-
--- Populate dropdown with **unique** pet names
-
-
-
-
-
-
-
-local autoEquipEnabled = false
-
-local function EquipBestPets()
-    local player = game:GetService("Players").LocalPlayer
-    local petsFolder = player.leaderstats.Inventory.Pets
-    local maxEquip = player.leaderstats.Values:GetAttribute("MaxEquipPets") or 1
-    local bestPets = {}
-
-    local petsList = {}
-    for _, pet in ipairs(petsFolder:GetChildren()) do
-        local rank = pet:GetAttribute("Rank")
-        if rank and typeof(rank) == "number" then
-            table.insert(petsList, {name = pet.Name, rank = rank})
-        end
-    end
-
-    table.sort(petsList, function(a, b) return a.rank > b.rank end)
-
-    local equipCount = 0
-    for _, petData in ipairs(petsList) do
-        if equipCount < maxEquip then
-            table.insert(bestPets, petData.name)
-            equipCount = equipCount + 1
-        else
-            break
-        end
-    end
-
-    if #bestPets > 0 then
-        game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer({
-            {["Event"] = "EquipBest", ["Pets"] = bestPets},
-            "\n"
-        })
-    end
-end
-
-
-local Toggle = Tabs.pets:AddToggle("AutoEquip", { Title = "Auto Equip Best Pets", Default = false })
-
-Toggle:OnChanged(function(state)
-    autoEquipEnabled = state
-    if state then
-        Fluent:Notify({ Title = "Auto Equip", Content = "Enabled. Equipping every 2 minutes.", Duration = 5 })
-        task.spawn(function()
-            while autoEquipEnabled do
-                EquipBestPets()
-                wait(120)
-            end
-        end)
-    else
-        Fluent:Notify({ Title = "Auto Equip", Content = "Disabled.", Duration = 5 })
-    end
-end)
 
 Tabs.Player:AddButton({
     Title = "Boost FPS",
@@ -1885,70 +1594,6 @@ Tabs.Main:AddToggle("AutoFarmToggle", {
 })
 
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
-local Inventory = LocalPlayer:FindFirstChild("leaderstats") and LocalPlayer.leaderstats:FindFirstChild("Inventory")
-
-
-
-
-
-local SelectedLevel = 1
-local SellingEnabled = false
-
--- Dropdown để chọn cấp độ vũ khí (đã chuyển sang tab Misc)
-local Dropdown = Tabs.misc:AddDropdown("WeaponLevel", {
-    Title = "Select Weapon Level",
-    Values = {"1", "2", "4", "5", "6", "7"},
-    Multi = false,
-    Default = "1",
-})
-
-Dropdown:OnChanged(function(Value)
-    SelectedLevel = tonumber(Value)
-end)
-
--- Bật/tắt tự động bán (đã chuyển sang tab Misc)
-local Toggle = Tabs.misc:AddToggle("AutoSell", { Title = "Auto-Sell Weapons", Default = false })
-
-Toggle:OnChanged(function(Value)
-    SellingEnabled = Value
-end)
-
--- Hàm để bán vũ khí dựa trên cấp độ đã chọn
-local function SellWeapons()
-    if not Inventory or not SellingEnabled then return end
-    
-    for _, weapon in ipairs(Inventory.Weapons:GetChildren()) do
-        local level = weapon:GetAttribute("Level")
-        if level == SelectedLevel then
-            local args = {
-                [1] = {
-                    [1] = {
-                        ["Action"] = "Sell",
-                        ["Event"] = "WeaponAction",
-                        ["Name"] = weapon.Name
-                    },
-                    [2] = "\n"
-                }
-            }
-            ReplicatedStorage:WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
-            
-        end
-    end
-end
-
--- Vòng lặp liên tục kiểm tra vũ khí để bán
-task.spawn(function()
-    while task.wait(0.5) do
-        if SellingEnabled then
-            SellWeapons()
-        end
-    end
-end)
-
-
 local AutoEnterDungeon = Tabs.dungeon:AddToggle("AutoEnterDungeon", { Title = "Auto Enter Guild Dungeon", Default = false })
 
 local function EnterDungeon()
@@ -2145,24 +1790,17 @@ end
 
 -- Thêm event listener để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
-    if not Tabs or type(Tabs) ~= "table" then
-        warn("Tabs is not properly initialized.")
-        return
-    end
-
     for _, tab in pairs(Tabs) do
-        if tab and type(tab._components) == "table" then
-            for _, element in pairs(tab._components) do
-                if element and typeof(element.OnChanged) == "function" then
-                    element.OnChanged:Connect(function()
-                        pcall(function()
-                            SaveManager:Save("AutoSave_" .. playerName)
-                        end)
+        if tab and tab._components then -- Kiểm tra tab và tab._components có tồn tại không
+        for _, element in pairs(tab._components) do
+                if element and element.OnChanged then -- Kiểm tra element và element.OnChanged có tồn tại không
+                element.OnChanged:Connect(function()
+                    pcall(function()
+                        SaveManager:Save("AutoSave_" .. playerName)
                     end)
+                end)
                 end
             end
-        else
-            warn("Tab components are not properly initialized.")
         end
     end
 end
@@ -2171,80 +1809,492 @@ end
 AutoSaveConfig()
 setupSaveEvents() -- Thêm dòng này
 
--- Add functionality to move to selected enemy without conflicts
-local zone1Enemies = {"Soondoo", "Gonshee", "Daek"}
-local zone2Enemies = {"LongIn", "Anders", "Largalgan"}
-local allEnemies = {"Soondoo", "Gonshee", "Daek", "LongIn", "Anders", "Largalgan"}
+local BuyWeaponSection = Tabs.shop:AddSection("Buy Weapon")
+-- Mapping giữa shops và weapons
+local weaponsByShop = {
+    ["WeaponShop1"] = {"BasicSword", "StarterBlade", "StoneDagger"},
+    ["WeaponShop2"] = {"MetalSword", "SharpKatana", "WindBlade"},
+    ["WeaponShop3"] = {"DualKunai", "FireSword", "PoisonDagger"},
+    ["WeaponShop4"] = {"ThunderBlade", "ShadowKnife", "IceSpear"},
+    ["WeaponShop5"] = {"DragonSword", "PhoenixWings", "AbyssBlade"},
+    ["WeaponShop6"] = {"DemonClaws", "AngelicRapier", "CosmicStaff"},
+    ["WeaponShop7"] = {"SlayerScythe", "SlayerScythe2", "VoidSlicer"}
+}
 
-local position1 = Vector3.new(325.349365234375, 28.08351707458496, 1.5231389999389648)
-local position2 = Vector3.new(-39.65372085571289, 30.901124954223633, -141.8142852783203)
+local selectedShop = "WeaponShop1" -- Shop mặc định
+local selectedWeapon = "" -- Weapon mặc định
+local autoBuyEnabled = false -- Trạng thái Auto Buy
 
-local selectedEnemyName = nil
-local lastEnemy = nil
+-- Cập nhật ConfigSystem để lưu các biến mới
+ConfigSystem.DefaultConfig.SelectedShop = selectedShop
+ConfigSystem.DefaultConfig.SelectedWeapon = selectedWeapon
+ConfigSystem.DefaultConfig.AutoBuyEnabled = autoBuyEnabled
 
-local function moveTo(position)
-    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(position)})
-    tween:Play()
-end
-
-local function getNearestEnemyByName(name)
-    local folder = workspace.__Main.__Enemies:FindFirstChild("Client")
-    if not folder then return nil end
-
-    local closest, minDist = nil, math.huge
-    for _, enemy in pairs(folder:GetChildren()) do
-        local head = enemy:FindFirstChild("Head")
-        local title = enemy:FindFirstChild("HealthBar") and enemy.HealthBar:FindFirstChild("Main") and enemy.HealthBar.Main:FindFirstChild("Title")
-        if head and title and title:IsA("TextLabel") and title.Text == name then
-            local dist = (head.Position - hrp.Position).Magnitude
-            if dist < minDist then
-                minDist = dist
-                closest = enemy
+-- Dropdown để chọn Shop
+Tabs.shop:AddDropdown("ShopDropdown", {
+    Title = "Select Shop",
+    Values = {"WeaponShop1", "WeaponShop2", "WeaponShop3", "WeaponShop4", "WeaponShop5", "WeaponShop6", "WeaponShop7"},
+    Multi = false,
+    Default = ConfigSystem.CurrentConfig.SelectedShop or selectedShop,
+    Callback = function(shop)
+        selectedShop = shop
+        ConfigSystem.CurrentConfig.SelectedShop = shop
+        
+        -- Cập nhật danh sách weapon dựa trên shop được chọn
+        local weaponDropdown = Fluent.Options.WeaponDropdown
+        if weaponDropdown then
+            weaponDropdown:SetValues(weaponsByShop[shop] or {})
+            -- Đặt giá trị mặc định nếu có weapon
+            if #weaponsByShop[shop] > 0 then
+                selectedWeapon = weaponsByShop[shop][1]
+                weaponDropdown:SetValue(selectedWeapon)
+                ConfigSystem.CurrentConfig.SelectedWeapon = selectedWeapon
+            else
+                selectedWeapon = ""
             end
         end
-    end
-    return closest
-end
-
-Tabs.Main:AddDropdown("EnemySelection", {
-    Title = "Select Enemy",
-    Values = allEnemies,
-    Multi = false,
-    Default = "",
-    Callback = function(name)
-        selectedEnemyName = name
-        lastEnemy = nil
+        
+        ConfigSystem.SaveConfig()
     end
 })
 
-RunService.RenderStepped:Connect(function()
-    if not selectedEnemyName then return end
+-- Dropdown để chọn Weapon trong shop đã chọn
+Tabs.shop:AddDropdown("WeaponDropdown", {
+    Title = "Select Weapon",
+    Values = weaponsByShop[selectedShop] or {},
+    Multi = false,
+    Default = ConfigSystem.CurrentConfig.SelectedWeapon or (weaponsByShop[selectedShop] and weaponsByShop[selectedShop][1] or ""),
+    Callback = function(weapon)
+        selectedWeapon = weapon
+        ConfigSystem.CurrentConfig.SelectedWeapon = weapon
+        ConfigSystem.SaveConfig()
+        print("Selected Weapon:", selectedWeapon) -- Gỡ lỗi
+    end
+})
 
-    if lastEnemy then
-        local amount = lastEnemy:FindFirstChild("HealthBar") and lastEnemy.HealthBar:FindFirstChild("Main") and lastEnemy.HealthBar.Main:FindFirstChild("Bar") and lastEnemy.HealthBar.Main.Bar:FindFirstChild("Amount")
-        if not lastEnemy:FindFirstChild("Head") or not amount or not amount:IsA("TextLabel") or tonumber(amount.Text) == 0 then
-            lastEnemy = nil
+-- Hàm để mua weapon
+local function buyWeapon()
+    if selectedShop and selectedWeapon and selectedWeapon ~= "" then
+        local args = {
+            [1] = {
+                [1] = {
+                    ["Action"] = "Buy",
+                    ["Shop"] = selectedShop,
+                    ["Item"] = selectedWeapon,
+                    ["Event"] = "ItemShopAction"
+                },
+                [2] = "\n"
+            }
+        }
+        
+        game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+        print("Đã mua:", selectedWeapon, "từ cửa hàng:", selectedShop)
+    else
+        print("Vui lòng chọn shop và weapon!")
+    end
+end
+
+-- Toggle để bật/tắt Auto Buy
+Tabs.shop:AddToggle("AutoBuyToggle", {
+    Title = "Auto Buy Weapon",
+    Default = ConfigSystem.CurrentConfig.AutoBuyEnabled or false,
+    Callback = function(state)
+        autoBuyEnabled = state
+        ConfigSystem.CurrentConfig.AutoBuyEnabled = state
+        ConfigSystem.SaveConfig()
+        
+        if state then
+            task.spawn(function()
+                while autoBuyEnabled do
+                    buyWeapon()
+                    task.wait(1) -- Chờ 1 giây giữa mỗi lần mua
+                end
+            end)
         end
     end
+})
+local UpdateWeaponSection = Tabs.shop:AddSection("Update Weapon")
+-- Thêm code cho tab Update sau phần mã của tab Buy
+-- Hàm để lấy danh sách tên vũ khí duy nhất từ inventory
+local function getUniqueWeaponNames()
+    local weapons = {}
+    local seenNames = {} -- Để theo dõi tên duy nhất
 
-    if not lastEnemy then
-        lastEnemy = getNearestEnemyByName(selectedEnemyName)
-        if not lastEnemy then
-            if table.find(zone1Enemies, selectedEnemyName) then
-                moveTo(position1)
-            elseif table.find(zone2Enemies, selectedEnemyName) then
-                moveTo(position2)
+    local playerWeapons = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Weapons:GetChildren()
+    print("Đang lấy danh sách vũ khí...") -- GỠ LỖI
+
+    for _, weapon in ipairs(playerWeapons) do
+        local weaponName = weapon:GetAttribute("Name") -- Lấy thuộc tính "Name"
+        if weaponName then
+            print("Đã tìm thấy vũ khí:", weaponName) -- GỠ LỖI
+            if not seenNames[weaponName] then
+                table.insert(weapons, weaponName)
+                seenNames[weaponName] = true -- Đánh dấu tên đã thấy
             end
         end
     end
+    return weapons
+end
 
-    if lastEnemy and lastEnemy:FindFirstChild("Head") then
-        moveTo(lastEnemy.Head.Position)
+-- Hàm để lấy danh sách ID của tất cả vũ khí cùng loại
+local function getWeaponIDs(weaponType)
+    local weaponIDs = {}
+    
+    local playerWeapons = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Weapons:GetChildren()
+    for _, weapon in ipairs(playerWeapons) do
+        local weaponName = weapon:GetAttribute("Name")
+        -- Kiểm tra xem vũ khí có phải là loại đang tìm kiếm không
+        if weaponName == weaponType then
+            table.insert(weaponIDs, weapon.Name) -- Thêm ID của vũ khí vào danh sách
+            print("Đã tìm thấy ID vũ khí:", weapon.Name) -- GỠ LỖI
+        end
     end
-end)
+    
+    return weaponIDs
+end
 
+-- Lấy danh sách tên vũ khí ban đầu
+local weaponTypes = getUniqueWeaponNames()
+local selectedWeaponType = weaponTypes[1] or "" -- Loại vũ khí mặc định
+local autoUpdateEnabled = false -- Trạng thái Auto Update
+local autoSelectedEnabled = false -- Trạng thái Auto Update cho vũ khí đã chọn
 
+-- Cập nhật ConfigSystem
+ConfigSystem.DefaultConfig.SelectedWeaponType = selectedWeaponType
+ConfigSystem.DefaultConfig.AutoUpdateEnabled = autoUpdateEnabled
+ConfigSystem.DefaultConfig.AutoSelectedEnabled = autoSelectedEnabled
 
+-- Dropdown để chọn loại vũ khí muốn nâng cấp
+Tabs.shop:AddDropdown("WeaponTypeDropdown", {
+    Title = "Select Weapon Type",
+    Values = weaponTypes,
+    Multi = false,
+    Default = ConfigSystem.CurrentConfig.SelectedWeaponType or selectedWeaponType,
+    Callback = function(weaponType)
+        selectedWeaponType = weaponType
+        ConfigSystem.CurrentConfig.SelectedWeaponType = weaponType
+        ConfigSystem.SaveConfig()
+        print("Selected Weapon Type:", selectedWeaponType) -- GỠ LỖI
+    end
+})
 
+-- Hàm để lấy tất cả vũ khí theo level
+local function getWeaponsByLevel(weaponType)
+    local weaponsByLevel = {}
+    
+    -- Khởi tạo mảng để lưu trữ vũ khí theo level
+    for i = 1, 7 do
+        weaponsByLevel[i] = {}
+    end
+    
+    local playerWeapons = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Weapons:GetChildren()
+    for _, weapon in ipairs(playerWeapons) do
+        local weaponName = weapon:GetAttribute("Name")
+        local weaponLevel = weapon:GetAttribute("Level") or 1
+        
+        -- Nếu không chọn loại vũ khí cụ thể hoặc vũ khí thuộc loại đã chọn
+        if (not weaponType or weaponType == "" or weaponName == weaponType) and weaponLevel >= 1 and weaponLevel <= 7 then
+            table.insert(weaponsByLevel[weaponLevel], weapon.Name)
+            print("Đã tìm thấy vũ khí:", weaponName, "Level:", weaponLevel, "ID:", weapon.Name)
+        end
+    end
+    
+    return weaponsByLevel
+end
 
+-- Hàm để nâng cấp vũ khí theo level
+local function upgradeWeaponsByLevel(weaponType)
+    local weaponsByLevel = getWeaponsByLevel(weaponType)
+    local anyUpgraded = false
+    
+    -- Duyệt qua từng level, bắt đầu từ level thấp nhất
+    for level = 1, 6 do
+        local weapons = weaponsByLevel[level]
+        
+        -- Nếu có ít nhất 3 vũ khí cùng level, thực hiện nâng cấp
+        while #weapons >= 3 do
+            -- Lấy 3 vũ khí đầu tiên để nâng cấp
+            local upgradeWeapons = {
+                weapons[1],
+                weapons[2],
+                weapons[3]
+            }
+            
+            -- Xóa 3 vũ khí này khỏi danh sách
+            table.remove(weapons, 1)
+            table.remove(weapons, 1)
+            table.remove(weapons, 1)
+            
+            -- Thực hiện nâng cấp
+            local weaponName = game:GetService("Players").LocalPlayer.leaderstats.Inventory.Weapons:FindFirstChild(upgradeWeapons[1]):GetAttribute("Name")
+            
+            local args = {
+                [1] = {
+                    [1] = {
+                        ["Type"] = weaponName,
+                        ["BuyType"] = "Gems",
+                        ["Weapons"] = upgradeWeapons,
+                        ["Event"] = "UpgradeWeapon",
+                        ["Level"] = level + 1
+                    },
+                    [2] = "\n"
+                }
+            }
+            
+            game:GetService("ReplicatedStorage"):WaitForChild("BridgeNet2"):WaitForChild("dataRemoteEvent"):FireServer(unpack(args))
+            print("Đang nâng cấp", #upgradeWeapons, "vũ khí", weaponName, "từ level", level, "lên level", level + 1)
+            
+            Fluent:Notify({
+                Title = "Đang nâng cấp",
+                Content = "Đang nâng cấp " .. weaponName .. " từ level " .. level .. " lên level " .. (level + 1),
+                Duration = 3
+            })
+            
+            anyUpgraded = true
+            task.wait(1) -- Đợi 1 giây để tránh spam server
+        end
+    end
+    
+    if not anyUpgraded then
+        Fluent:Notify({
+            Title = "Thông báo",
+            Content = "Không có vũ khí nào đủ số lượng để nâng cấp",
+            Duration = 3
+        })
+    end
+    
+    return anyUpgraded
+end
+
+-- Nút để làm mới danh sách vũ khí
+Tabs.shop:AddButton({
+    Title = "Refresh Weapon List",
+    Description = "Refresh the list of available weapons",
+    Callback = function()
+        weaponTypes = getUniqueWeaponNames()
+        local weaponTypeDropdown = Fluent.Options.WeaponTypeDropdown
+        if weaponTypeDropdown then
+            weaponTypeDropdown:SetValues(weaponTypes)
+            if #weaponTypes > 0 and not table.find(weaponTypes, selectedWeaponType) then
+                selectedWeaponType = weaponTypes[1]
+                weaponTypeDropdown:SetValue(selectedWeaponType)
+                ConfigSystem.CurrentConfig.SelectedWeaponType = selectedWeaponType
+                ConfigSystem.SaveConfig()
+            end
+        end
+        
+        Fluent:Notify({
+            Title = "Danh sách đã làm mới",
+            Content = "Đã cập nhật danh sách vũ khí có sẵn",
+            Duration = 3
+        })
+    end
+})
+
+-- Toggle để bật/tắt nâng cấp vũ khí đã chọn
+Tabs.shop:AddToggle("AutoSelectToggle", {
+    Title = "Upgrade Selected Weapon",
+    Default = ConfigSystem.CurrentConfig.AutoSelectedEnabled or false,
+    Callback = function(state)
+        autoSelectedEnabled = state
+        ConfigSystem.CurrentConfig.AutoSelectedEnabled = state
+        ConfigSystem.SaveConfig()
+        
+        if state then
+            if not selectedWeaponType or selectedWeaponType == "" then
+                Fluent:Notify({
+                    Title = "Lỗi",
+                    Content = "Vui lòng chọn loại vũ khí trước khi nâng cấp",
+                    Duration = 3
+                })
+                return
+            end
+            
+            task.spawn(function()
+                while autoSelectedEnabled do
+                    local upgraded = upgradeWeaponsByLevel(selectedWeaponType)
+                    if not upgraded then
+                        task.wait(5) -- Đợi lâu hơn nếu không có vũ khí nào được nâng cấp
+                    else
+                        task.wait(1) -- Đợi ngắn hơn nếu có vũ khí được nâng cấp
+                    end
+                end
+            end)
+        end
+    end
+})
+
+-- Thêm section sell pet vào tab shop
+local SellPetSection = Tabs.shop:AddSection("Sell Pet")
+-- Ánh xạ các rank số sang chữ cái
+local rankMapping = {
+    [1] = "E",
+    [2] = "D",
+    [3] = "C",
+    [4] = "B",
+    [5] = "A",
+    [6] = "S",
+    [7] = "SS",
+    [8] = "G",
+    [9] = "N"
+}
+
+-- Tạo mảng giá trị để hiển thị trong dropdown
+local rankValues = {}
+for i = 1, 9 do
+    table.insert(rankValues, rankMapping[i] .. " (Rank " .. i .. ")")
+end
+
+-- Biến để lưu trạng thái
+local selectedRanks = {}
+local autoSellEnabled = false
+
+-- Cập nhật ConfigSystem để lưu các biến mới
+ConfigSystem.DefaultConfig.SelectedRanks = {}
+ConfigSystem.DefaultConfig.AutoSellEnabled = false
+
+-- Dropdown để chọn Rank
+Tabs.shop:AddDropdown("RankDropdown", {
+    Title = "Choose Ranks to Sell",
+    Values = rankValues,
+    Multi = true,
+    Default = ConfigSystem.CurrentConfig.SelectedRanks or {},
+    Callback = function(selections)
+        selectedRanks = {}
+        -- Kiểm tra xem selections có phải là table hay không
+        if type(selections) == "table" then
+            for selection, isSelected in pairs(selections) do
+                -- Chỉ xử lý các mục đã chọn (boolean = true)
+                if isSelected == true then
+                    -- Trích xuất số rank từ chuỗi (vd: từ "E (Rank 1)" lấy ra 1)
+                    local rankStr = selection:match("Rank (%d+)")
+                    if rankStr then
+                        local rank = tonumber(rankStr)
+                        if rank then
+                            table.insert(selectedRanks, rank)
+                        end
+                    end
+                end
+            end
+        end
+        ConfigSystem.CurrentConfig.SelectedRanks = selections
+        ConfigSystem.SaveConfig()
+        print("Selected Ranks:", table.concat(selectedRanks, ", "))
+    end
+})
+
+-- Hàm để bán pet theo rank
+local function sellPetsByRank()
+    local petFolder = player.leaderstats.Inventory:WaitForChild("Pets")
+    local petsToSell = {}
+    
+    for _, pet in ipairs(petFolder:GetChildren()) do
+        local rankVal = pet:GetAttribute("Rank")
+        if typeof(rankVal) == "number" and table.find(selectedRanks, rankVal) then
+            table.insert(petsToSell, pet.Name)
+            
+            -- Nếu đạt đủ 20 pet hoặc đây là pet cuối cùng, tiến hành bán
+            if #petsToSell >= 20 then
+                local args = {
+                    [1] = {
+                        [1] = {
+                            ["Event"] = "SellPet",
+                            ["Pets"] = petsToSell
+                        },
+                        [2] = "\t"
+                    }
+                }
+                remote:FireServer(unpack(args))
+                print("Đã bán", #petsToSell, "pet với rank đã chọn")
+                
+                -- Đợi một khoảng thời gian ngắn để tránh spam
+                task.wait(0.3)
+                
+                -- Đặt lại danh sách
+                petsToSell = {}
+            end
+        end
+    end
+    
+    -- Bán nốt những pet còn lại (nếu có)
+    if #petsToSell > 0 then
+        local args = {
+            [1] = {
+                [1] = {
+                    ["Event"] = "SellPet",
+                    ["Pets"] = petsToSell
+                },
+                [2] = "\t"
+            }
+        }
+        remote:FireServer(unpack(args))
+        print("Đã bán", #petsToSell, "pet còn lại với rank đã chọn")
+    end
+end
+
+-- Nút để bán ngay
+Tabs.shop:AddButton({
+    Title = "Sell Now",
+    Description = "Sell all pets with selected ranks immediately",
+    Callback = function()
+        if #selectedRanks > 0 then
+            sellPetsByRank()
+        else
+            Fluent:Notify({
+                Title = "Chưa chọn rank",
+                Content = "Vui lòng chọn ít nhất một rank để bán pet",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- Toggle để bật/tắt Auto Sell
+Tabs.shop:AddToggle("AutoSellToggle", {
+    Title = "Auto Sell Pets",
+    Default = ConfigSystem.CurrentConfig.AutoSellEnabled or false,
+    Callback = function(state)
+        autoSellEnabled = state
+        ConfigSystem.CurrentConfig.AutoSellEnabled = state
+        ConfigSystem.SaveConfig()
+        
+        if state then
+            if #selectedRanks > 0 then
+                Fluent:Notify({
+                    Title = "Auto Sell đã bật",
+                    Content = "Sẽ tự động bán pet với các rank: " .. table.concat(selectedRanks, ", "),
+                    Duration = 3
+                })
+                
+                task.spawn(function()
+                    while autoSellEnabled do
+                        sellPetsByRank()
+                        task.wait(5) -- Đợi 5 giây giữa mỗi lần kiểm tra và bán
+                    end
+                end)
+            else
+                Fluent:Notify({
+                    Title = "Chưa chọn rank",
+                    Content = "Vui lòng chọn ít nhất một rank để bán pet",
+                    Duration = 3
+                })
+            end
+        end
+    end
+})
+
+-- Khôi phục lại tab Auto farm Dungeon
+Tabs.dungeon:AddToggle("TeleportMobs", { 
+    Title = "Auto farm Dungeon", 
+    Default = false, 
+    Flag = "AutoFarmDungeon", -- Thêm Flag để lưu cấu hình
+    Callback = function(state) 
+        teleportEnabled = state 
+        if state then 
+            task.spawn(teleportDungeon) 
+        end 
+    end 
+})
+
+-- Thiết lập biến theo dõi thời gian
+local selectedEnemyFoundTime = nil
