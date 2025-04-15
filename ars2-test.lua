@@ -2303,29 +2303,31 @@ Tabs.shop:AddToggle("AutoSellToggle", {
 })
 
 -- Khôi phục lại tab Auto farm Dungeon
-Tabs.dungeon:AddToggle("TeleportMobs", { 
-    Title = "Auto farm Dungeon", 
-    Default = false, 
-    Flag = "AutoFarmDungeon", -- Thêm Flag để lưu cấu hình
-    Callback = function(state) 
-        teleportEnabled = state 
-        if state then 
+Tabs.dungeon:AddToggle("TeleportMobs", {
+    Title = "Auto farm Dungeon",
+    Default = false,
+    Flag = "AutoFarmDungeon",
+    Callback = function(state)
+        teleportEnabled = state
+        if state then
             task.spawn(function()
                 local tweenService = game:GetService("TweenService")
                 local player = game.Players.LocalPlayer
                 local enemiesFolder = workspace.__Main.__Enemies.Server
-            
+                local isTweenActive = true
+
                 local function getDistance(pos1, pos2)
                     return (pos1 - pos2).Magnitude
                 end
-            
+
                 local function getClosestEnemy()
                     local closestEnemy = nil
                     local closestDistance = math.huge
-                    local playerPosition = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position
-            
-                    if not playerPosition then return nil end
-            
+                    local playerCharacter = player.Character
+
+                    if not playerCharacter or not playerCharacter:FindFirstChild("HumanoidRootPart") then return nil end
+                    local playerPosition = playerCharacter.HumanoidRootPart.Position
+
                     for _, enemy in pairs(enemiesFolder:GetChildren()) do
                         local hp = enemy:GetAttribute("HP")
                         if hp and hp > 0 then
@@ -2339,41 +2341,41 @@ Tabs.dungeon:AddToggle("TeleportMobs", {
                             end
                         end
                     end
-            
+
                     return closestEnemy
                 end
-            
+
                 local function moveToEnemy(enemy)
-                    if player.Character and player.Character.PrimaryPart and enemy.Position then
+                    local playerCharacter = player.Character
+                    if playerCharacter and playerCharacter:FindFirstChild("HumanoidRootPart") and enemy.Position then
+                        playerCharacter.PrimaryPart = playerCharacter.HumanoidRootPart
+                        playerCharacter.HumanoidRootPart.Anchored = false
+
                         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
-                        local tween = tweenService:Create(player.Character.PrimaryPart, tweenInfo, {Position = enemy.Position})
+                        local tween = tweenService:Create(playerCharacter.PrimaryPart, tweenInfo, {CFrame = enemy.CFrame})
                         tween:Play()
                         tween.Completed:Wait()
                     end
                 end
-            
+
                 local function monitorEnemies()
                     while teleportEnabled do
                         local closestEnemy = getClosestEnemy()
-            
                         if closestEnemy then
                             moveToEnemy(closestEnemy)
                             while closestEnemy:GetAttribute("HP") and closestEnemy:GetAttribute("HP") > 0 do
-                                wait(0.5)
+                                task.wait(0.5)
                             end
                         else
                             break
                         end
-                        wait(0.1)
+                        task.wait(0.1)
                     end
                 end
-            
+
                 monitorEnemies()
             end)
-            
-        end 
-    end 
+        end
+    end
 })
 
--- Thiết lập biến theo dõi thời gian
-local selectedEnemyFoundTime = nil
