@@ -353,28 +353,47 @@ end
 
 local function teleportDungeon()
     while teleportEnabled do
-        local target = getAnyEnemy()
-
-        if target and target.Parent then
-            anticheat()
-            moveToTarget(target)
-            task.wait(0.50)
-            fireShowPetsRemote()
-            remote:FireServer({
-                {
-                    ["PetPos"] = {},
-                    ["AttackType"] = "All",
-                    ["Event"] = "Attack",
-                    ["Enemy"] = target.Name
-                },
-                "\7"
-            })
-
-            repeat task.wait() until not target.Parent or isEnemyDead(target)
-
-            dungeonkill[target.Name] = true
+        local function getDistance(pos1, pos2)
+            return (pos1 - pos2).Magnitude
         end
-        task.wait()
+
+        local function getClosestEnemy()
+            local closestEnemy = nil
+            local closestDistance = math.huge
+            local playerPosition = hrp.Position
+            for _, enemy in pairs(enemiesFolder:GetChildren()) do
+                local hp = enemy:GetAttribute("HP")
+                if hp and hp > 0 and enemy:IsA("Model") and enemy:FindFirstChild("HumanoidRootPart") then
+                    local distance = getDistance(playerPosition, enemy.HumanoidRootPart.Position)
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestEnemy = enemy
+                    end
+                end
+            end
+            return closestEnemy
+        end
+
+        local function moveToEnemy(enemy)
+            if enemy and enemy:FindFirstChild("HumanoidRootPart") then
+                local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
+                local tween = TweenService:Create(hrp, tweenInfo, {
+                    CFrame = enemy.HumanoidRootPart.CFrame * CFrame.new(0, 0, 6)
+                })
+                tween:Play()
+                tween.Completed:Wait()
+            end
+        end
+
+        local enemy = getClosestEnemy()
+        if enemy then
+            moveToEnemy(enemy)
+            while teleportEnabled and enemy:GetAttribute("HP") and enemy:GetAttribute("HP") > 0 do
+                task.wait(0.3)
+            end
+        else
+            task.wait(1)
+        end
     end
 end
 
@@ -2291,7 +2310,67 @@ Tabs.dungeon:AddToggle("TeleportMobs", {
     Callback = function(state) 
         teleportEnabled = state 
         if state then 
-            task.spawn(teleportDungeon) 
+            task.spawn(function()
+                local tweenService = game:GetService("TweenService")
+                local player = game.Players.LocalPlayer
+                local enemiesFolder = workspace.__Main.__Enemies.Server
+            
+                local function getDistance(pos1, pos2)
+                    return (pos1 - pos2).Magnitude
+                end
+            
+                local function getClosestEnemy()
+                    local closestEnemy = nil
+                    local closestDistance = math.huge
+                    local playerPosition = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position
+            
+                    if not playerPosition then return nil end
+            
+                    for _, enemy in pairs(enemiesFolder:GetChildren()) do
+                        local hp = enemy:GetAttribute("HP")
+                        if hp and hp > 0 then
+                            local enemyPosition = enemy.Position
+                            if enemyPosition then
+                                local distance = getDistance(playerPosition, enemyPosition)
+                                if distance < closestDistance then
+                                    closestDistance = distance
+                                    closestEnemy = enemy
+                                end
+                            end
+                        end
+                    end
+            
+                    return closestEnemy
+                end
+            
+                local function moveToEnemy(enemy)
+                    if player.Character and player.Character.PrimaryPart and enemy.Position then
+                        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
+                        local tween = tweenService:Create(player.Character.PrimaryPart, tweenInfo, {Position = enemy.Position})
+                        tween:Play()
+                        tween.Completed:Wait()
+                    end
+                end
+            
+                local function monitorEnemies()
+                    while teleportEnabled do
+                        local closestEnemy = getClosestEnemy()
+            
+                        if closestEnemy then
+                            moveToEnemy(closestEnemy)
+                            while closestEnemy:GetAttribute("HP") and closestEnemy:GetAttribute("HP") > 0 do
+                                wait(0.5)
+                            end
+                        else
+                            break
+                        end
+                        wait(0.1)
+                    end
+                end
+            
+                monitorEnemies()
+            end)
+            
         end 
     end 
 })
