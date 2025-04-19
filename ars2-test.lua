@@ -175,26 +175,22 @@ end
 ConfigSystem.LoadConfig()
 setupAutoSave() -- Bắt đầu auto save
 
-task.defer(function()
-    selectedShop = ConfigSystem.CurrentConfig.SelectedShop or selectedShop
-    selectedWeapon = ConfigSystem.CurrentConfig.SelectedWeapon or selectedWeapon
-
-    local shopWeapons = weaponsByShop[selectedShop] or {}
-    local weaponDropdown = Fluent.Options.WeaponDropdown
-    if weaponDropdown then
-        weaponDropdown:SetValues(shopWeapons)
-        if table.find(shopWeapons, selectedWeapon) then
-            weaponDropdown:SetValue(selectedWeapon)
-        elseif #shopWeapons > 0 then
-            selectedWeapon = shopWeapons[1]
-            weaponDropdown:SetValue(selectedWeapon)
-            ConfigSystem.CurrentConfig.SelectedWeapon = selectedWeapon
+-- Cập nhật hàm để lưu ngay khi thay đổi giá trị
+local function setupSaveEvents()
+    for _, tab in pairs(Tabs) do
+        if tab and tab._components then
+            for _, element in pairs(tab._components) do
+                if element and element.OnChanged then
+                    element.OnChanged:Connect(function()
+                        pcall(function()
+                            ConfigSystem.SaveConfig()
+                        end)
+                    end)
+                end
+            end
         end
     end
-end)
-
-
-
+end
 
 -- Thiết lập SaveManager của Fluent để tương thích
 local playerName = game:GetService("Players").LocalPlayer.Name
@@ -1894,6 +1890,26 @@ Tabs.shop:AddDropdown("WeaponDropdown", {
         print("Selected Weapon:", selectedWeapon) -- Gỡ lỗi
     end
 })
+-- ⏳ Đồng bộ lại danh sách vũ khí sau khi GUI đã khởi tạo
+task.defer(function()
+    local currentShop = ConfigSystem.CurrentConfig.SelectedShop
+    local currentWeapon = ConfigSystem.CurrentConfig.SelectedWeapon
+    local weaponDropdown = Fluent.Options.WeaponDropdown
+
+    if currentShop and weaponsByShop[currentShop] and weaponDropdown then
+        weaponDropdown:SetValues(weaponsByShop[currentShop])
+        if table.find(weaponsByShop[currentShop], currentWeapon) then
+            weaponDropdown:SetValue(currentWeapon)
+        else
+            local defaultWeapon = weaponsByShop[currentShop][1]
+            selectedWeapon = defaultWeapon
+            weaponDropdown:SetValue(defaultWeapon)
+            ConfigSystem.CurrentConfig.SelectedWeapon = defaultWeapon
+            ConfigSystem.SaveConfig()
+        end
+    end
+end)
+
 
 -- Hàm để mua weapon
 local function buyWeapon()
