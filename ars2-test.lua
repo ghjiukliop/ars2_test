@@ -173,7 +173,25 @@ end
 
 -- Tải cấu hình khi khởi động
 ConfigSystem.LoadConfig()
+selectedShop = ConfigSystem.CurrentConfig.SelectedShop or selectedShop
+selectedWeapon = ConfigSystem.CurrentConfig.SelectedWeapon or selectedWeapon
 setupAutoSave() -- Bắt đầu auto save
+
+-- Đồng bộ lại dropdown vũ khí sau khi load cấu hình
+local savedShop = ConfigSystem.CurrentConfig.SelectedShop
+local savedWeapon = ConfigSystem.CurrentConfig.SelectedWeapon
+
+if savedShop and Fluent and Fluent.Options and Fluent.Options.WeaponDropdown then
+    local weaponList = weaponsByShop[savedShop] or {}
+    Fluent.Options.WeaponDropdown:SetValues(weaponList)
+
+    if savedWeapon and table.find(weaponList, savedWeapon) then
+        Fluent.Options.WeaponDropdown:SetValue(savedWeapon)
+    elseif weaponList[1] then
+        Fluent.Options.WeaponDropdown:SetValue(weaponList[1])
+        ConfigSystem.CurrentConfig.SelectedWeapon = weaponList[1]
+    end
+end
 
 -- Cập nhật hàm để lưu ngay khi thay đổi giá trị
 local function setupSaveEvents()
