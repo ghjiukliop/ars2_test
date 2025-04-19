@@ -173,27 +173,28 @@ end
 
 -- Tải cấu hình khi khởi động
 ConfigSystem.LoadConfig()
-selectedShop = ConfigSystem.CurrentConfig.SelectedShop or selectedShop
-selectedWeapon = ConfigSystem.CurrentConfig.SelectedWeapon or selectedWeapon
-
 setupAutoSave() -- Bắt đầu auto save
 
--- Cập nhật hàm để lưu ngay khi thay đổi giá trị
-local function setupSaveEvents()
-    for _, tab in pairs(Tabs) do
-        if tab and tab._components then
-            for _, element in pairs(tab._components) do
-                if element and element.OnChanged then
-                    element.OnChanged:Connect(function()
-                        pcall(function()
-                            ConfigSystem.SaveConfig()
-                        end)
-                    end)
-                end
-            end
+task.defer(function()
+    selectedShop = ConfigSystem.CurrentConfig.SelectedShop or selectedShop
+    selectedWeapon = ConfigSystem.CurrentConfig.SelectedWeapon or selectedWeapon
+
+    local shopWeapons = weaponsByShop[selectedShop] or {}
+    local weaponDropdown = Fluent.Options.WeaponDropdown
+    if weaponDropdown then
+        weaponDropdown:SetValues(shopWeapons)
+        if table.find(shopWeapons, selectedWeapon) then
+            weaponDropdown:SetValue(selectedWeapon)
+        elseif #shopWeapons > 0 then
+            selectedWeapon = shopWeapons[1]
+            weaponDropdown:SetValue(selectedWeapon)
+            ConfigSystem.CurrentConfig.SelectedWeapon = selectedWeapon
         end
     end
-end
+end)
+
+
+
 
 -- Thiết lập SaveManager của Fluent để tương thích
 local playerName = game:GetService("Players").LocalPlayer.Name
@@ -1651,10 +1652,10 @@ Tabs.Discord:AddButton({
     Title = "Copy Discord Link",
     Description = "Copies the Discord invite link to clipboard",
     Callback = function()
-        setclipboard("")
+        setclipboard("https://discord.gg/W77Vj2HNBA")
         Fluent:Notify({
             Title = "Đã sao chép!",
-            Content = "Havent added yet.",
+            Content = "Đường dẫn Discord đã được sao chép vào clipboard.",
             Duration = 3
         })
     end
@@ -2381,3 +2382,4 @@ Tabs.dungeon:AddToggle("TeleportMobs", {
         end
     end
 })
+
