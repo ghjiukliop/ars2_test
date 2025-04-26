@@ -19,7 +19,7 @@ local farmingStyle = "Default" -- Phong cách farm mặc định
 -- Hệ thống lưu trữ mới
 local ConfigSystem = {}
 local HttpService = game:GetService("HttpService")
-ConfigSystem.Folder = "KaihonScriptHub"
+ConfigSystem.Folder = "HTHub"
 ConfigSystem.SubFolder = "AriseCrossover"
 ConfigSystem.FileName = player.Name .. "_Config.json"
 ConfigSystem.FilePath = ConfigSystem.Folder .. "/" .. ConfigSystem.SubFolder .. "/" .. ConfigSystem.FileName
@@ -31,7 +31,7 @@ ConfigSystem.DefaultConfig = {
     MainAutoArise = false,
     FarmingMethod = "Tween",
     DamageMobs = false,
-    SelectedShop = "WeaponShop1",
+    SelectedShop = "",
     SelectedWeapon = "",
     AutoBuyEnabled = false,
     AutoScanEnabled = false,
@@ -145,20 +145,20 @@ ConfigSystem.LoadConfig = function()
         end)
         
         if success and data then
-            ConfigSystem.CurrentConfig = data
+        ConfigSystem.CurrentConfig = data
             print("Đã tải cấu hình từ: " .. ConfigSystem.FilePath)
-            return true
-        else
+        return true
+    else
             warn("Lỗi khi phân tích cấu hình, tạo mới.")
         end
     end
     
     -- Nếu không đọc được hoặc có lỗi, tạo cấu hình mặc định
-    ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
-    ConfigSystem.SaveConfig()
+        ConfigSystem.CurrentConfig = table.clone(ConfigSystem.DefaultConfig)
+        ConfigSystem.SaveConfig()
     print("Khởi tạo cấu hình mới")
-    return false
-end
+        return false
+    end
 
 -- Tạo một hệ thống auto save riêng
 local function setupAutoSave()
@@ -195,10 +195,10 @@ end
 -- Thiết lập SaveManager của Fluent để tương thích
 local playerName = game:GetService("Players").LocalPlayer.Name
 if InterfaceManager then
-    InterfaceManager:SetFolder("KaihonScriptHub")
+    InterfaceManager:SetFolder("HTHub")
 end
 if SaveManager then
-    SaveManager:SetFolder("KaihonScriptHub/AriseCrossover/" .. playerName)
+    SaveManager:SetFolder("HTHub/AriseCrossover/" .. playerName)
 end
 
 -- Tự động phát hiện HumanoidRootPart mới khi người chơi hồi sinh
@@ -463,12 +463,12 @@ if not Fluent then
 end
 
 local Window = Fluent:CreateWindow({
-    Title = "Kaihon Hub | Arise Crossover",
+    Title = "HT HUB | Arise Crossover",
     SubTitle = "",
     TabWidth = 140,
     Size = UDim2.fromOffset(450, 350),
     Acrylic = false,
-    Theme = "Darker",
+    Theme = "Amethyst",
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
@@ -492,7 +492,8 @@ local mobsByWorld = {
     ["BCWorld"] = {"Sortudo", "Michille", "Wind"},
     ["ChainsawWorld"] = {"Heaven", "Zere", "Ika"},
     ["JojoWorld"] = {"Diablo", "Gosuke", "Golyne"},
-    ["DBWorld"] = {"Turtle", "Green", "Sky"}
+    ["DBWorld"] = {"Turtle", "Green", "Sky"},
+    ["OPMWorld"] = {"Rider", "Cryborg", "Hurricane"}
 }
 
 local selectedWorld = "SoloWorld" -- Default world
@@ -500,7 +501,7 @@ local selectedWorld = "SoloWorld" -- Default world
 -- Dropdown để chọn World/Map
 Tabs.Main:AddDropdown("WorldDropdown", {
     Title = "Select World",
-    Values = {"SoloWorld", "NarutoWorld", "OPWorld", "BleachWorld", "BCWorld", "ChainsawWorld", "JojoWorld", "DBWorld"},
+    Values = {"SoloWorld", "NarutoWorld", "OPWorld", "BleachWorld", "BCWorld", "ChainsawWorld", "JojoWorld", "DBWorld", "OPMWorld"},
     Multi = false,
     Default = selectedWorld,
     Callback = function(world)
@@ -582,7 +583,7 @@ local Dropdown = Tabs.Main:AddDropdown("MovementMethod", {
 })
 
 Tabs.Main:AddToggle("GamepassShadowFarm", {
-    Title = "Gamepass Shadow farm",
+    Title = "Shadow farm",
     Default = false,
     Callback = function(state)
         local attackatri = game:GetService("Players").LocalPlayer.Settings
@@ -750,11 +751,15 @@ Tabs.tp:AddButton({
     end
 })
 
+Tabs.tp:AddButton({
+    Title = "XZ City",
+    Description = "Set spawn & reset",
+    Callback = function()
+        SetSpawnAndReset("OPMWorld")
+    end
+})
+
 local TweenService = game:GetService("TweenService")
-
-
-
-
 
 -- Lấy Player và HumanoidRootPart
 local TweenService = game:GetService("TweenService")
@@ -1033,7 +1038,7 @@ Tabs.dungeon:AddToggle("TeleportToDungeon", {
 })
 
 
-local AutoDetectToggle = Tabs.dungeon:AddToggle("AutoDetectDungeon", {Title = "Auto Detect Dungeon (KEEP THIS ON)", Default = true})
+local AutoDetectToggle = Tabs.dungeon:AddToggle("AutoDetectDungeon", {Title = "Auto Detect Dungeon", Default = true})
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1048,6 +1053,8 @@ local villageSpawns = {
     ["Lucky"] = "BCWorld",
     ["Nipon City"] = "ChainsawWorld",
     ["Mori Town"] = "JojoWorld",
+    ["Dragon City"] = "DBWorld",
+    ["XZ City"] = "OPMWorld",
 }
 
 local function SetSpawnAndReset(spawnName)
@@ -1639,16 +1646,15 @@ AutoEnterDungeon:OnChanged(function(Value)
 end)
 
 Tabs.Discord:AddParagraph({
-    Title = "🎉 Chào mừng đến với Kaihon Hub Premium!",
-    Content = "Mở khóa trải nghiệm tốt nhất với các tính năng cao cấp của chúng tôi!\n\n" ..
-              "Nâng cấp ngay và nâng cao trải nghiệm chơi game của bạn!"
+    Title = "Thông tin",
+    Content = "Script được tạo bởi HT HUB"
 })
 
 Tabs.Discord:AddButton({
     Title = "Copy Discord Link",
-    Description = "Copies the Discord invite link to clipboard",
+    Description = "Join my discord",
     Callback = function()
-        setclipboard("https://discord.gg/W77Vj2HNBA")
+        setclipboard("https://discord.gg/v94FqK3zH5")
         Fluent:Notify({
             Title = "Đã sao chép!",
             Content = "Đường dẫn Discord đã được sao chép vào clipboard.",
@@ -1663,8 +1669,8 @@ InterfaceManager:SetLibrary(Fluent)
 
 -- Thay đổi cách lưu cấu hình để sử dụng tên người chơi
 local playerName = game:GetService("Players").LocalPlayer.Name
-InterfaceManager:SetFolder("KaihonScriptHub")
-SaveManager:SetFolder("KaihonScriptHub/AriseCrossover/" .. playerName)
+InterfaceManager:SetFolder("HTHub")
+SaveManager:SetFolder("HTHub/AriseCrossover/" .. playerName)
 
 -- Xóa đoạn xây dựng phần cấu hình trong Settings tab
 -- InterfaceManager:BuildInterfaceSection(Tabs.Settings)
@@ -1698,7 +1704,7 @@ Tabs.Settings:AddButton({
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "Kaihon Hub",
+    Title = "HT HUB",
     Content = "Script đã tải xong! Cấu hình tự động lưu theo tên người chơi: " .. playerName,
     Duration = 3
 })
@@ -1779,7 +1785,7 @@ end)
 local scriptSuccess, scriptError = pcall(function()
     Fluent:Notify({
         Title = "Script đã khởi động thành công",
-        Content = "Kaihon Hub | Arise Crossover đang hoạt động",
+        Content = "HT Hub | Arise Crossover đang hoạt động",
         Duration = 5
     })
 end)
@@ -1796,7 +1802,7 @@ if not scriptSuccess then
         textLabel.Position = UDim2.new(0.35, 0, 0.45, 0)
         textLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textLabel.Text = "Kaihon Hub đã khởi động nhưng gặp lỗi. Hãy thử lại."
+        textLabel.Text = "HT Hub đã khởi động nhưng gặp lỗi. Hãy thử lại."
         textLabel.Parent = screenGui
         
         local uiCorner = Instance.new("UICorner")
@@ -1831,13 +1837,15 @@ setupSaveEvents() -- Thêm dòng này
 local BuyWeaponSection = Tabs.shop:AddSection("Buy Weapon")
 -- Mapping giữa shops và weapons
 local weaponsByShop = {
-    ["WeaponShop1"] = {"BasicSword", "StarterBlade", "StoneDagger"},
-    ["WeaponShop2"] = {"MetalSword", "SharpKatana", "WindBlade"},
-    ["WeaponShop3"] = {"DualKunai", "FireSword", "PoisonDagger"},
-    ["WeaponShop4"] = {"ThunderBlade", "ShadowKnife", "IceSpear"},
-    ["WeaponShop5"] = {"DragonSword", "PhoenixWings", "AbyssBlade"},
-    ["WeaponShop6"] = {"DemonClaws", "AngelicRapier", "CosmicStaff"},
-    ["WeaponShop7"] = {"SlayerScythe", "SlayerScythe2", "VoidSlicer"}
+    ["WeaponShop1"] = {"SpikeMace", "GemStaff", "DualKando", "CrystalScepter", "DualBoneMace", "DualSteelNaginata"},
+    ["WeaponShop2"] = {"MonsterSlayer", "DualBasicStaffs", "PirateSaber", "BronzeGreatAxe", "MixedBattleAxe", "DualAncientMace"},
+    ["WeaponShop3"] = {"DualPirateSaber", "DualSteelSabers", "DualSteelButterfly", "SteelSaber", "SteelButterfly", "SteelKando"},
+    ["WeaponShop4"] = {"SteelNaginata", "GreatKopesh", "BoneMace", "CrimsonStaff", "AncientMace", "GreatSaber"},
+    ["WeaponShop5"] = {"DualGreatSaber", "BasicStaff", "StellKopesh", "GreatTrident", "DualCrystalScepter", "DualTrident"},
+    ["WeaponShop6"] = {"OzSword2", "CrystalSword2", "ObsidianDualAxe2", "SilverSpear2", "DragonAxe2", "DualDivineAxe2"},
+    ["WeaponShop7"] = {"BloodStaff2", "DualCrimsonStaff2", "DualGemStaffs2", "GreatScythe2", "TwinObsidianDualStaff2", "SlayerScythe2"},
+    ["WeaponShop8"] = {"BeholderStaff2", "TwinMixedAxe2", "TwinTrollSlayer2", "RuneAxe2", "DualSilverSpear2", "DualDragonAxe2"},
+    ["WeaponShop9"] = {"SteelSword2", "SteelSpear2", "StarSpear2", "BoneStaff2", "SunGreatAxe2", "EnergyGreatSword2"},
 }
 
 local selectedShop = "WeaponShop1" -- Shop mặc định
@@ -1852,7 +1860,7 @@ ConfigSystem.DefaultConfig.AutoBuyEnabled = autoBuyEnabled
 -- Dropdown để chọn Shop
 Tabs.shop:AddDropdown("ShopDropdown", {
     Title = "Select Shop",
-    Values = {"WeaponShop1", "WeaponShop2", "WeaponShop3", "WeaponShop4", "WeaponShop5", "WeaponShop6", "WeaponShop7"},
+    Values = {"WeaponShop1", "WeaponShop2", "WeaponShop3", "WeaponShop4", "WeaponShop5", "WeaponShop6", "WeaponShop7", "WeaponShop8", "WeaponShop9"},
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SelectedShop or selectedShop,
     Callback = function(shop)
@@ -2005,7 +2013,7 @@ ConfigSystem.DefaultConfig.AutoSelectedEnabled = autoSelectedEnabled
 
 -- Dropdown để chọn loại vũ khí muốn nâng cấp
 Tabs.shop:AddDropdown("WeaponTypeDropdown", {
-    Title = "Select Weapon Type",
+    Title = "Select Weapon",
     Values = weaponTypes,
     Multi = false,
     Default = ConfigSystem.CurrentConfig.SelectedWeaponType or selectedWeaponType,
@@ -2194,7 +2202,7 @@ ConfigSystem.DefaultConfig.AutoSellEnabled = false
 
 -- Dropdown để chọn Rank
 Tabs.shop:AddDropdown("RankDropdown", {
-    Title = "Choose Ranks to Sell",
+    Title = "Choose Ranks",
     Values = rankValues,
     Multi = true,
     Default = ConfigSystem.CurrentConfig.SelectedRanks or {},
@@ -2398,4 +2406,3 @@ Tabs.dungeon:AddToggle("TeleportMobs", {
         end
     end
 })
-
