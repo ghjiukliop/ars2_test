@@ -471,6 +471,25 @@ local Window = Fluent:CreateWindow({
     Theme = "Amethyst",
     MinimizeKey = Enum.KeyCode.LeftControl
 })
+task.defer(function()
+    local player = game:GetService("Players").LocalPlayer
+    player.CharacterAdded:Connect(function(character)
+        task.wait(1)
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Anchored = false
+            hrp.Velocity = Vector3.new(0, -10, 0) -- Cho rơi tự nhiên
+        end
+    end)
+
+    if player.Character then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Anchored = false
+            hrp.Velocity = Vector3.new(0, -10, 0)
+        end
+    end
+end)
 
 local Tabs = {
     Discord = Window:AddTab({ Title = "INFO", Icon = ""}),
