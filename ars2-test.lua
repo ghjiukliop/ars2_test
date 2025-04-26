@@ -473,21 +473,25 @@ local Window = Fluent:CreateWindow({
 })
 task.defer(function()
     local player = game:GetService("Players").LocalPlayer
-    player.CharacterAdded:Connect(function(character)
-        task.wait(1)
+
+    local function fixPhysics(character)
+        task.wait(0.5)
         local hrp = character:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.Anchored = false
-            hrp.Velocity = Vector3.new(0, -10, 0) -- Cho rơi tự nhiên
+            hrp.Velocity = Vector3.new(0, -50, 0) -- 💥 Đẩy rơi mạnh xuống
+            hrp.RotVelocity = Vector3.new(0, 0, 0) -- Xoá quay
         end
+    end
+
+    -- Khi nhân vật mới xuất hiện
+    player.CharacterAdded:Connect(function(character)
+        fixPhysics(character)
     end)
 
+    -- Ngay lần đầu tiên
     if player.Character then
-        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.Anchored = false
-            hrp.Velocity = Vector3.new(0, -10, 0)
-        end
+        fixPhysics(player.Character)
     end
 end)
 
